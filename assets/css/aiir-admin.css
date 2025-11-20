@@ -224,3 +224,10 @@ input.aiir-manual-input {
   position: relative;
   top: 3px;
 }
+
+.aiir-bulk-loading {
+    padding: 12px;
+    background: #fff;
+    border-left: 4px solid #007cba;
+    margin-top: 15px;
+}
