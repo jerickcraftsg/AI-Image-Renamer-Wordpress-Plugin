@@ -1,0 +1,226 @@
+/* Modal background */
+.aiir-modal {
+  display: none;
+  position: fixed;
+  z-index: 200000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.5);
+}
+
+/* Modal box */
+.aiir-modal-content {
+  background-color: #fff;
+  margin: 5% auto;
+  padding: 20px 30px;
+  border-radius: 8px;
+  max-width: 600px;
+  box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+}
+
+/* Header */
+.aiir-modal-content h2 {
+  margin-top: 0;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 17px;
+}
+
+/* Close button */
+.aiir-close {
+  float: right;
+  font-size: 24px;
+  cursor: pointer;
+  color: #555;
+}
+.aiir-close:hover {
+  color: #000;
+}
+
+/* Image list */
+.aiir-image-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #f2f2f2;
+  padding-bottom: 10px;
+}
+.aiir-image-item img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.aiir-options label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Rename status messages */
+.aiir-status {
+  margin-top: 6px;
+  font-size: 13px;
+  padding-left: 4px;
+}
+
+.aiir-status-success {
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+.aiir-status-error {
+  color: #c62828;
+  font-weight: 500;
+}
+
+.aiir-status-overall {
+  margin-top: 15px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.aiir-manual-wrap {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+    gap: 8px;
+}
+
+.aiir-manual-input {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 13px;
+}
+
+.aiir-ext {
+    background: #f0f0f0;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #555;
+    border: 1px solid #ddd;
+    line-height: 1.4em;
+}
+
+.aiir-no-suggestion {
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-style: italic;
+}
+
+.aiir-manual {
+    margin-top: 8px;
+}
+
+.aiir-manual-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.aiir-manual-input {
+    padding: 4px 6px;
+    width: 180px;
+}
+
+.aiir-ext {
+    font-weight: bold;
+}
+
+/* Loading overlay */
+.aiir-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Spinner */
+.aiir-spinner {
+    width: 36px;
+    height: 36px;
+    border: 4px solid #ccc;
+    border-top-color: #2271b1; /* WP blue */
+    border-radius: 50%;
+    animation: aiir-spin 0.8s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes aiir-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+button#aiir-submit {
+  background: #2271b1;
+  border-color: #2271b1;
+  color: #fff;
+  text-shadow: none;
+  display: inline-block;
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 2.15384615;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  cursor: pointer;
+  border-width: 1px;
+  border-style: solid;
+  -webkit-appearance: none;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+button#aiir-submit:hover {
+  background: #135e96;
+  border-color: #135e96;
+  color: #fff;
+}
+
+input.aiir-manual-input {
+  padding: 0 8px;
+  line-height: 2;
+  min-height: 30px;
+  box-shadow: 0 0 0 transparent;
+  border-radius: 4px;
+  border: 1px solid #8c8f94;
+  background-color: #fff;
+  color: #2c3338;
+}
+
+.aiir-options label {
+  display: block;
+  margin-bottom: 4px;
+  vertical-align: middle;
+}
+
+.aiir-options label input[type=radio] {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  margin-right: .25rem;
+  line-height: .71428571;
+  position: relative;
+  top: 3px;
+}
