@@ -55,6 +55,8 @@ class AIIR_Admin {
         delete_transient('aiir_recent_uploads');
 
         $images = [];
+        $used_names = []; // Track all suggested filenames across images
+
         foreach ($recent as $attachment_id) {
             $mime = get_post_mime_type($attachment_id);
 
@@ -69,14 +71,10 @@ class AIIR_Admin {
             // Skip if file doesn't exist
             if (!$file || !file_exists($file)) continue;
 
-            $suggestions = self::generate_suggestions($file);
-            // $images[] = [
-            //     'id' => $attachment_id,
-            //     'url' => $url,
-            //     'suggestions' => $suggestions,
-            // ];
-
             $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+
+            // Generate suggestions and ensure uniqueness
+            $suggestions = self::generate_unique_suggestions($file, $used_names);
 
             $images[] = [
                 'id' => $attachment_id,
@@ -91,6 +89,69 @@ class AIIR_Admin {
         }
 
         wp_send_json_success(['images' => $images]);
+    }
+
+    private static function generate_unique_suggestions($file_path, &$used_names) {
+        $provider = get_option('aiir_ai_provider', 'google');
+
+        if ($provider === 'openai') {
+            $raw_suggestions = self::generate_openai_suggestions($file_path);
+        } else {
+            $raw_suggestions = self::generate_google_suggestions($file_path);
+        }
+
+        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        $upload_dir = pathinfo($file_path, PATHINFO_DIRNAME);
+        $unique_suggestions = [];
+        
+        foreach ($raw_suggestions as $suggestion) {
+            $base_name = pathinfo($suggestion, PATHINFO_FILENAME);
+            $final_name = $base_name;
+            $counter = 1;
+
+            // Keep incrementing until we find a unique name
+            while (self::filename_exists($upload_dir, $final_name . '.' . $ext, $used_names)) {
+                $final_name = $base_name . '-' . $counter;
+                $counter++;
+            }
+
+            $unique_name = $final_name . '.' . $ext;
+            $unique_suggestions[] = $unique_name;
+            $used_names[] = $unique_name; // Mark as used
+        }
+
+        return $unique_suggestions;
+    }
+
+    // Check if filename exists in media library or current batch
+    private static function filename_exists($upload_dir, $filename, $used_names) {
+        // Check current batch
+        if (in_array($filename, $used_names)) {
+            return true;
+        }
+
+        // Check if file physically exists in upload directory
+        $full_path = $upload_dir . '/' . $filename;
+        if (file_exists($full_path)) {
+            return true;
+        }
+
+        // Check WordPress media library database
+        global $wpdb;
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        
+        // Check for exact match or numbered variations (file-1.jpg, file-2.jpg, etc)
+        $like_pattern = $wpdb->esc_like($basename) . '%.' . $ext;
+        
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} 
+            WHERE post_type = 'attachment' 
+            AND guid LIKE %s",
+            '%' . $like_pattern
+        ));
+
+        return $existing > 0;
     }
 
     private static function generate_suggestions($file_path) {
@@ -156,64 +217,97 @@ class AIIR_Admin {
         return $suggestions;
     }
 
+    
     private static function generate_openai_suggestions($file_path) {
 
         $api_key = get_option('aiir_openai_api_key', '');
 
         if (empty($api_key)) {
-            error_log('AIIR: OpenAI API key missing.');
+            error_log('AIIR: OpenAI API key missing');
             return [];
         }
 
-        $image_base64 = base64_encode(file_get_contents($file_path));
+        // === Load and encode image ===
+        $image_data = file_get_contents($file_path);
 
+        if (!$image_data) {
+            error_log('AIIR: Failed to read image file');
+            return [];
+        }
+
+        $mime = wp_check_filetype($file_path)['type'] ?: 'image/jpeg';
+        $base64 = base64_encode($image_data);
+
+        $img = "data:$mime;base64,$base64";
+
+        // === Build request body ===
         $body = [
             "model" => "gpt-4o-mini",
-            "messages" => [
+            "max_tokens" => 300,
+            "messages" => [  // Changed from "input" to "messages"
                 [
                     "role" => "user",
                     "content" => [
                         [
-                            "type" => "input_image",
-                            "image_url" => "data:image/jpeg;base64," . $image_base64
+                            "type" => "text",
+                            "text" => "Generate 3 SEO-friendly descriptive filenames for this image.
+                                       Return ONLY the names, one per line, no punctuation, no extension."
                         ],
                         [
-                            "type" => "text",
-                            "text" => "Generate 3 SEO-friendly short image filenames (kebab-case, no extension)."
+                            "type" => "image_url",
+                            "image_url" => [  // This needs to be a nested object
+                                "url" => $img
+                            ]
                         ]
                     ]
                 ]
             ]
         ];
 
-        $response = wp_remote_post("https://api.openai.com/v1/chat/completions", [
-            "headers" => [
-                "Content-Type" => "application/json",
-                "Authorization" => "Bearer " . $api_key
-            ],
-            "body" => json_encode($body),
-            "timeout" => 30
-        ]);
+        // === Send request ===
+        $response = wp_remote_post(
+            "https://api.openai.com/v1/chat/completions",
+            [
+                "headers" => [
+                    "Content-Type"  => "application/json",
+                    "Authorization" => "Bearer " . $api_key,
+                ],
+                "body"    => json_encode($body),
+                "timeout" => 45,
+            ]
+        );
 
-        if (is_wp_error($response)) return [];
-
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-
-        if (empty($data["choices"][0]["message"]["content"])) return [];
-
-        $raw = trim($data["choices"][0]["message"]["content"]);
-        $lines = preg_split('/\r\n|\r|\n/', $raw);
-
-        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
-        $suggestions = [];
-
-        foreach ($lines as $line) {
-            $clean = strtolower(trim($line));
-            $clean = preg_replace('/[^a-z0-9-]+/', '-', $clean);
-            $suggestions[] = trim($clean, '-') . '.' . $ext;
+        if (is_wp_error($response)) {
+            error_log("AIIR: OpenAI error → " . $response->get_error_message());
+            return [];
         }
 
-        return array_slice($suggestions, 0, 3);
+        $json = json_decode(wp_remote_retrieve_body($response), true);
+
+        // === SAFETY CHECK ===
+        if (empty($json["choices"][0]["message"]["content"])) {
+            error_log("AIIR: OpenAI empty response");
+            return [];
+        }
+
+        // === Parse output ===
+        $raw = trim($json["choices"][0]["message"]["content"]);
+        $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw)));
+
+        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        $final = [];
+
+        foreach ($lines as $line) {
+            $clean = strtolower($line);
+            $clean = preg_replace('/[^a-z0-9-]+/', '-', $clean);
+            $clean = trim($clean, '-');
+
+            if ($clean) {
+                $final[] = $clean . '.' . $ext;
+            }
+        }
+
+        return array_slice($final, 0, 3);
     }
 
 
@@ -321,6 +415,7 @@ class AIIR_Admin {
         <?php
     }
 
+    // Updated bulk_scan to handle uniqueness
     public static function bulk_scan() {
         check_ajax_referer('aiir_nonce', 'nonce');
 
@@ -361,16 +456,17 @@ class AIIR_Admin {
         $total_remaining = $count_query->found_posts;
 
         $images = [];
+        $used_names = []; // Track used names in this batch
 
         foreach ($query->posts as $img) {
-
             $file = get_attached_file($img->ID);
             if (!$file || !file_exists($file)) continue;
 
             $url  = wp_get_attachment_url($img->ID);
             $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
 
-            $suggestions = self::generate_suggestions($file);
+            // Generate unique suggestions for this batch
+            $suggestions = self::generate_unique_suggestions($file, $used_names);
 
             $images[] = [
                 'id'          => $img->ID,
